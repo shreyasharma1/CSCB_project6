@@ -30,13 +30,13 @@ LR_pairs<-utils_loadObject("LR_pairs.rda")
 # Simulate a bulk expression matrix. Create 30 samples by randomly selecting without replacement 25 single cells and averaging their expression.
 
 dimensions = dim(syn_data)
-pickCells<-function(sampTab, sample_num, cell_num=25){
-  cols = sample(1:dimensions[2], sample_num*cell_num, replace=F)
+pickCells<-function(sampTab, cell_num=25){
+  rows = sample(1:dimensions[1], cell_num, replace=F)
   # This generates a vector of length sample_num*cell_num with no repeat numbers. That way, every 25 entries together make up a bulk sample, totaling to 30 samples made by random selection w/o replacement.
   selection = c()
-  for (i in 1:length(cols)){
-    stX<-sampTab[,cols[i]]
-    selection = cbind(selection, stX)
+  for (i in 1:length(rows)){
+    stX<-sampTab[rows[i],]
+    selection = rbind(selection, stX)
   }
   return(selection)
 }
@@ -44,22 +44,18 @@ pickCells<-function(sampTab, sample_num, cell_num=25){
 bulk_data = c()
 sample_num = 30
 cell_num = 25
-selection = pickCells(syn_data, 30, 25)
-i = 1
-while (i < sample_num*cell_num) {
+for (i in 1:sample_num){
   bulk_vals = c()
-  # print(i)
-  for (j in 1:dimensions[1]){
-    cells_by_gene = selection[j,i:(i+24)]
+  selection = pickCells(syn_data, cell_num)
+  for (j in 1:dimensions[2]){
+    cells_by_gene = selection[,j]
     avg = mean(cells_by_gene)
     bulk_vals = cbind(bulk_vals, avg)
   }
-  bulk_data = cbind(bulk_data, matrix(bulk_vals))
-  i = i + 25
+  bulk_data = rbind(bulk_data, bulk_vals)
 }
 
-rownames(bulk_data) <- rownames(syn_data)
-colnames(bulk_data) <- colnames(syn_data[,1:30])
+colnames(bulk_data) <- colnames(syn_data)
 # print(bulk_data)
 
 ```
@@ -96,7 +92,7 @@ net_bulk <- clr(mim_bulk)
 ```
 
 ```{r}
-# extract subnetworks. Perform enrichment analysis to support findings
+# Extract subnetworks. Perform enrichment analysis to support findings
 
 ```
 
@@ -106,7 +102,7 @@ net_bulk <- clr(mim_bulk)
 ```
 
 ```{r}
-# devise a method to quantify cell fate potency, and apply it to the Bertie data.
+# Devise a method to quantify cell fate potency, and apply it to the Bertie data.
 
 ```
 
