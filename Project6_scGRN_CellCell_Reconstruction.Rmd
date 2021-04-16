@@ -1,0 +1,112 @@
+---
+title: "Project 6: scGRN and Cell-Cell Interaction Network Reconstruction"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(scmap)
+library(minet)
+
+utils_loadObject<-function
+(fname
+ ### file name
+){
+  x<-load(fname);
+  get(x);
+}
+
+setwd("/Users/michellechang/Downloads")
+syn_data<-utils_loadObject("synthetic_expX_proj6.rda")
+mmTFs<-utils_loadObject("synthetic_TFs_proj6.rda")
+GRN<-utils_loadObject("synthetic_gs_proj6.rda")
+meta_data<-utils_loadObject("bertie_e7.5_proj6.rda")
+LR_pairs<-utils_loadObject("LR_pairs.rda")
+```
+
+```{r}
+# Simulate a bulk expression matrix. Create 30 samples by randomly selecting without replacement 25 single cells and averaging their expression.
+
+dimensions = dim(syn_data)
+pickCells<-function(sampTab, sample_num, cell_num=25){
+  cols = sample(1:dimensions[2], sample_num*cell_num, replace=F)
+  # This generates a vector of length sample_num*cell_num with no repeat numbers. That way, every 25 entries together make up a bulk sample, totaling to 30 samples made by random selection w/o replacement.
+  selection = c()
+  for (i in 1:length(cols)){
+    stX<-sampTab[,cols[i]]
+    selection = cbind(selection, stX)
+  }
+  return(selection)
+}
+
+bulk_data = c()
+sample_num = 30
+cell_num = 25
+selection = pickCells(syn_data, 30, 25)
+i = 1
+while (i < sample_num*cell_num) {
+  bulk_vals = c()
+  # print(i)
+  for (j in 1:dimensions[1]){
+    cells_by_gene = selection[j,i:(i+24)]
+    avg = mean(cells_by_gene)
+    bulk_vals = cbind(bulk_vals, avg)
+  }
+  bulk_data = cbind(bulk_data, matrix(bulk_vals))
+  i = i + 25
+}
+
+rownames(bulk_data) <- rownames(syn_data)
+colnames(bulk_data) <- colnames(syn_data[,1:30])
+# print(bulk_data)
+
+```
+
+```{r}
+# Reconstruct the GRN using the synthetic single cell data provided. Reconstruct the GRN using the bulk data from the previous step.
+mim_syn <- build.mim(syn_data,estimator="pearson") 
+net_syn <- clr(mim_syn)
+
+mim_bulk <- build.mim(bulk_data,estimator="pearson") 
+net_bulk <- clr(mim_bulk)
+
+# Note: I'm not sure if there is a way/function to visualize the reconstructed GRN for each? Because right now, it's just a bunch of numbers.
+```
+
+```{r}
+# Devise your own single-cell GRN reconstruction method
+
+```
+
+```{r}
+# Use your method to reconstruct the GRN of the synthetic single cell data. Compare performance to existing method
+
+```
+
+```{r}
+# Load in the Bertie data. Cluster and assign identity via marker genes, or any of the automated methods we have covered in class. Feel free to convert to a Seurat object first. 
+
+```
+
+```{r}
+# Reconstruct GRN of real (Bertie) data using two separate methods: CLR and your method.
+
+```
+
+```{r}
+# extract subnetworks. Perform enrichment analysis to support findings
+
+```
+
+```{r}
+# Devise a method to infer cell-cell signaling interaction networks and utilize it to reconstruct the cell-cell interaction network of the data.
+
+```
+
+```{r}
+# devise a method to quantify cell fate potency, and apply it to the Bertie data.
+
+```
+
