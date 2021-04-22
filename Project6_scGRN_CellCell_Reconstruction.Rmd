@@ -9,27 +9,26 @@ library(Seurat)
 library(patchwork)
 library(scmap)
 library(minet)
-
-utils_loadObject<-function
-(fname
- ### file name
-){
-  x<-load(fname);
-  get(x);
-}
+library(SingleCellExperiment)
+library(GENIE3)
 
 setwd("/Users/michellechang/Downloads")
+source("Project5_helper.R")
 syn_data<-utils_loadObject("synthetic_expX_proj6.rda")
 mmTFs<-utils_loadObject("synthetic_TFs_proj6.rda")
 GRN<-utils_loadObject("synthetic_gs_proj6.rda")
-meta_data<-utils_loadObject("bertie_e7.5_proj6.rda")
+sce_bertie<-utils_loadObject("bertie_e7.5_proj6.rda")
 LR_pairs<-utils_loadObject("LR_pairs.rda")
 ```
 
 ```{r}
 # Simulate a bulk expression matrix. Create 30 samples by randomly selecting without replacement 25 single cells and averaging their expression.
 
-dimensions = dim(syn_data)
+syn_seurat <- CreateSeuratObject(counts = syn_data, project = "synthetic", min.cells = 3, min.features = 200)
+syn_seurat = NormalizeData(syn_seurat, normalization.method = "LogNormalize")
+syn_expDat = as.matrix(syn_seurat[["RNA"]]@data)
+
+dimensions = dim(syn_expDat)
 pickCells<-function(sampTab, cell_num=25){
   rows = sample(1:dimensions[1], cell_num, replace=F)
   # This generates a vector of length sample_num*cell_num with no repeat numbers. That way, every 25 entries together make up a bulk sample, totaling to 30 samples made by random selection w/o replacement.
@@ -46,7 +45,7 @@ sample_num = 30
 cell_num = 25
 for (i in 1:sample_num){
   bulk_vals = c()
-  selection = pickCells(syn_data, cell_num)
+  selection = pickCells(syn_expDat, cell_num)
   for (j in 1:dimensions[2]){
     cells_by_gene = selection[,j]
     avg = mean(cells_by_gene)
@@ -55,8 +54,7 @@ for (i in 1:sample_num){
   bulk_data = rbind(bulk_data, bulk_vals)
 }
 
-colnames(bulk_data) <- colnames(syn_data)
-# print(bulk_data)
+colnames(bulk_data) <- colnames(syn_expDat)
 
 ```
 
@@ -71,24 +69,145 @@ net_bulk <- clr(mim_bulk)
 # Note: I'm not sure if there is a way/function to visualize the reconstructed GRN for each? Because right now, it's just a bunch of numbers.
 ```
 
+
 ```{r}
+# thought maybe we could just use another MIM GRN reconstruction method but mrnet and aracne both take forever to run for bertie data. We need to find a way to filter out less relevant data first then.
+
+# performing ARACNE on synthetic data
+netaracne_syn<-aracne(mim_syn,eps=0.05)
+
+# performing CLR on bertie data
+seurat_bertie <- as.Seurat(sce_bertie, counts = "counts", data = "logcounts")
+seurat_bertie = NormalizeData(seurat_bertie, normalization.method = "LogNormalize")
+bertie_expDat = as.matrix(seurat_bertie[["RNA"]]@data)
+bertie_expDat1 = t(bertie_expDat)
+mim_bertie <- build.mim(bertie_expDat1,estimator="spearman")
+net_bertie <- clr(mim_bertie)
+
+# # trying to filter out data but doesn't run well...
+# dimensions = dim(mim_bertie)
+# mim_bertie1 = matrix(0, nrow=dimensions[1], ncol=dimensions[2])
+# for (i in 1:dimensions[1]){
+#   for (j in 1:dimensions[2]){
+#     if (mim_bertie[i,j] > 0.01){
+#       mim_bertie1[i,j] = mim_bertie[i,j]
+#     }
+#   }
+# }
+
+# subset of bertie data
+mim_bertie_subset = mim_bertie[1:5000,1:5000]
+# performing ARACNE
+netaracne_bertie<-aracne(mim_bertie_subset,eps=0.05)
+```
+
+```{r}
+##### IGNORE ######
+
 # Devise your own single-cell GRN reconstruction method
-
-```
-
-```{r}
 # Use your method to reconstruct the GRN of the synthetic single cell data. Compare performance to existing method
+# performing GENIE3
 
+# Genes that are used as candidate regulators
+regulators <- colnames(syn_data)
+# preprocessing synthetic data
+syn_data <- t(syn_data)
+
+#nTrees and nCores set to 50 and 4 to reduce run time
+weightMat <- GENIE3(syn_data, regulators=regulators, treeMethod="RF",K=73,nTrees=50, nCores=4,verbose=TRUE)
+
+#get top 5 ranked links
+linkList_syn <- getLinkList(weightMat, reportMax=5)
+
+#get top links based on threshold?? we will have to choose this or top 5
+linkList1_syn <- getLinkList(weightMat, threshold=0.1)
 ```
 
 ```{r}
-# Load in the Bertie data. Cluster and assign identity via marker genes, or any of the automated methods we have covered in class. Feel free to convert to a Seurat object first. 
+##### IGNORE ######
 
-```
-
-```{r}
 # Reconstruct GRN of real (Bertie) data using two separate methods: CLR and your method.
 
+# preprocessing bertie data
+bertie_expDat = as.matrix(seurat_bertie[["RNA"]]@data)
+
+# performing CLR on bertie data
+bertie_expDat1 = t(bertie_expDat)
+mim_bertie <- build.mim(bertie_expDat1,estimator="spearman")
+net_bertie <- clr(mim_bertie)
+
+# performing GENIE3 on bertie data
+# Genes that are used as candidate regulators
+regulators <- rownames(seurat_bertie[["RNA"]])
+
+#nTrees and nCores set to 50 and 4 to reduce run time
+weightMat_bertie <- GENIE3(bertie_expDat, regulators=regulators, treeMethod="RF",K=73,nTrees=50, nCores=4,verbose=TRUE)
+
+#get top 5 ranked links
+linkList_bertie <- getLinkList(weightMat, reportMax=5)
+
+#get top links based on threshold?? we will have to choose this or top 5
+linkList1_bertie <- getLinkList(weightMat, threshold=0.1)
+```
+
+```{r}
+##### IGNORE ######
+
+# running SCENIC and then GENIE3
+# Suppress loading messages when building the HTML
+suppressPackageStartupMessages({
+  library(SCENIC)
+  library(AUCell)
+  library(RcisTarget)
+  library(KernSmooth)
+  library(BiocParallel)
+  library(ggplot2)
+  library(data.table)
+  library(grid)
+  library(ComplexHeatmap)
+})
+
+### Initialize settings
+scenicOptions <- initializeScenic(org="mgi", dbDir="cisTarget_databases", nCores=10)
+
+### Co-expression network
+genesKept <- geneFiltering(bertie_expDat, scenicOptions)
+exprMat_filtered <- bertie_expDat[genesKept, ]
+runCorrelation(exprMat_filtered, scenicOptions)
+exprMat_filtered_log <- log2(exprMat_filtered+1) 
+runGenie3(exprMat_filtered_log, scenicOptions)
+
+### Build and score the GRN
+exprMat_log <- log2(exprMat+1)
+scenicOptions@settings$dbs <- scenicOptions@settings$dbs["10kb"] # Toy run settings
+scenicOptions <- runSCENIC_1_coexNetwork2modules(scenicOptions)
+scenicOptions <- runSCENIC_2_createRegulons(scenicOptions, coexMethod=c("top5perTarget")) # Toy run settings
+scenicOptions <- runSCENIC_3_scoreCells(scenicOptions, exprMat_log)
+
+# Optional: Binarize activity
+# aucellApp <- plotTsne_AUCellApp(scenicOptions, exprMat_log)
+# savedSelections <- shiny::runApp(aucellApp)
+# newThresholds <- savedSelections$thresholds
+# scenicOptions@fileNames$int["aucell_thresholds",1] <- "int/newThresholds.Rds"
+# saveRDS(newThresholds, file=getIntName(scenicOptions, "aucell_thresholds"))
+scenicOptions <- runSCENIC_4_aucell_binarize(scenicOptions)
+tsneAUC(scenicOptions, aucType="AUC") # choose settings
+
+# # output/Step2_MotifEnrichment_preview.html in detail/subset:
+# motifEnrichment_selfMotifs_wGenes <- loadInt(scenicOptions, "motifEnrichment_selfMotifs_wGenes")
+# tableSubset <- motifEnrichment_selfMotifs_wGenes[highlightedTFs=="Sox8"]
+# viewMotifs(tableSubset) 
+# 
+# # output/Step2_regulonTargetsInfo.tsv in detail: 
+# regulonTargetsInfo <- loadInt(scenicOptions, "regulonTargetsInfo")
+# tableSubset <- regulonTargetsInfo[TF=="Stat6" & highConfAnnot==TRUE]
+# viewMotifs(tableSubset) 
+
+# Cell-type specific regulators (RSS): 
+regulonAUC <- loadInt(scenicOptions, "aucell_regulonAUC")
+rss <- calcRSS(AUC=getAUC(regulonAUC), cellAnnotation=cellInfo[colnames(regulonAUC), "CellType"], )
+rssPlot <- plotRSS(rss)
+plotly::ggplotly(rssPlot$plot)
 ```
 
 ```{r}
@@ -99,10 +218,70 @@ net_bulk <- clr(mim_bulk)
 ```{r}
 # Devise a method to infer cell-cell signaling interaction networks and utilize it to reconstruct the cell-cell interaction network of the data.
 
+library(SingleCellSignalR)
+data(example_dataset, package = "SingleCellSignalR")
+data = example_dataset
+genes = data$genes
+rownames(data) = genes
+data = data[,-1]
+clust <- clustering(data = data, n.cluster = 4, n = 10, method = "simlr",write = FALSE,pdf=FALSE)
+clust.ana <- cluster_analysis(data = data, genes = rownames(data), cluster = clust$cluster, write = FALSE)
+signal <- cell_signaling(data = data, genes = rownames(data), cluster = clust$cluster, write = FALSE)
+inter.net <- inter_network(data = data, signal = signal, genes = genes, cluster = clust$cluster, write = FALSE)
+visualize_interactions(signal = signal)
+
+seurat_bertie <- as.Seurat(sce_bertie, counts = "counts", data = "logcounts")
+seurat_bertie = NormalizeData(seurat_bertie, normalization.method = "LogNormalize")
+bertie_expDat = as.matrix(seurat_bertie[["RNA"]]@data)
+bertie_clust <- clustering(data = bertie_expDat, n.cluster = 4, n = 10, method = "simlr",write = FALSE,pdf=FALSE)
+bertie_clust.ana <- cluster_analysis(data = bertie_expDat, genes = rownames(bertie_expDat), cluster = bertie_clust$cluster, write = FALSE)
+bertie_signal <- cell_signaling(data = bertie_expDat, genes = rownames(bertie_expDat), cluster = bertie_clust$cluster, write = FALSE)
+# getting an error in inter.net
+inter.net <- inter_network(data = bertie_expDat, signal = bertie_signal, genes = rownames(bertie_expDat), cluster = bertie_clust$cluster, write = FALSE)
+visualize_interactions(signal = bertie_signal)
+
 ```
 
 ```{r}
 # Devise a method to quantify cell fate potency, and apply it to the Bertie data.
 
+# running RaceID/StemID to find potency
+library(RaceID)
+seurat_bertie <- as.Seurat(sce_bertie, counts = "counts", data = "logcounts")
+bertie_expDat = as.matrix(seurat_bertie[["RNA"]]@data)
+library("Matrix")
+expDat = as(bertie_expDat, "dgCMatrix")
+sc <- SCseq(expDat)
+sc <- filterdata(sc,mintotal=2000, minnumber=0)
+fdata <- getfdata(sc)
+sc <- compdist(sc,metric="pearson")
+sc <- clustexp(sc)
+
+plotsaturation(sc,disp=FALSE)
+sc <- findoutliers(sc, outminc=1)
+plotbackground(sc)
+plotsensitivity(sc)
+plotoutlierprobs(sc)
+clustheatmap(sc)
+sc <- comptsne(sc)
+plotmap(sc)
+
+# d  <- clustdiffgenes(sc,4,pvalue=.01)
+# dg <- d$dg
+# head(dg,25)
+# types <- sub("(\\_\\d+)$","", colnames(sc@ndata))
+# genes <- head(rownames(dg)[dg$fc>1],10)
+# plotmarkergenes(sc,genes,samples=types)
+# fractDotPlot(sc, genes, cluster=c(2,6,7,8,10), zsc=TRUE)
+
+ltr <- Ltree(sc)
+ltr <- compentropy(ltr)
+ltr <- projcells(ltr)
+ltr <- lineagegraph(ltr)
+ltr <- comppvalue(ltr)
+plotgraph(ltr,scthr=0.2,showCells=FALSE,showMap=TRUE)
+x <- compscore(ltr,scthr=0.2)
+plotlinkscore(ltr)
+projenrichment(ltr)
 ```
 
