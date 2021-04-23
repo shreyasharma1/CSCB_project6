@@ -60,7 +60,7 @@ colnames(bulk_data) <- colnames(syn_expDat)
 
 ```{r}
 # Reconstruct the GRN using the synthetic single cell data provided. Reconstruct the GRN using the bulk data from the previous step.
-mim_syn <- build.mim(syn_data,estimator="pearson") 
+mim_syn <- build.mim(syn_expDat,estimator="pearson") 
 net_syn <- clr(mim_syn)
 
 mim_bulk <- build.mim(bulk_data,estimator="pearson") 
@@ -71,6 +71,8 @@ net_bulk <- clr(mim_bulk)
 
 
 ```{r}
+##### IGNORE ####
+
 # thought maybe we could just use another MIM GRN reconstruction method but mrnet and aracne both take forever to run for bertie data. We need to find a way to filter out less relevant data first then.
 
 # performing ARACNE on synthetic data
@@ -84,17 +86,6 @@ bertie_expDat1 = t(bertie_expDat)
 mim_bertie <- build.mim(bertie_expDat1,estimator="spearman")
 net_bertie <- clr(mim_bertie)
 
-# # trying to filter out data but doesn't run well...
-# dimensions = dim(mim_bertie)
-# mim_bertie1 = matrix(0, nrow=dimensions[1], ncol=dimensions[2])
-# for (i in 1:dimensions[1]){
-#   for (j in 1:dimensions[2]){
-#     if (mim_bertie[i,j] > 0.01){
-#       mim_bertie1[i,j] = mim_bertie[i,j]
-#     }
-#   }
-# }
-
 # subset of bertie data
 mim_bertie_subset = mim_bertie[1:5000,1:5000]
 # performing ARACNE
@@ -102,8 +93,6 @@ netaracne_bertie<-aracne(mim_bertie_subset,eps=0.05)
 ```
 
 ```{r}
-##### IGNORE ######
-
 # Devise your own single-cell GRN reconstruction method
 # Use your method to reconstruct the GRN of the synthetic single cell data. Compare performance to existing method
 # performing GENIE3
@@ -121,97 +110,243 @@ linkList_syn <- getLinkList(weightMat, reportMax=5)
 
 #get top links based on threshold?? we will have to choose this or top 5
 linkList1_syn <- getLinkList(weightMat, threshold=0.1)
+
+library("stringr") 
+icol <- str_order(colnames(net_syn), numeric = TRUE)
+irow <- str_order(rownames(net_syn), numeric = TRUE)
+net_synmat2 <- net_syn[irow, icol]
+View(net_synmat2)
+icol <- str_order(colnames(weightMat), numeric = TRUE)
+irow <- str_order(rownames(weightMat), numeric = TRUE)
+weightMat2 <- weightMat[irow, icol]
+View(weightMat2)
+
+threshold = 0.03
+threshold1 = 1
+final_mat_syn = net_synmat2
+# which(net_synmat2 >= 1, arr.ind = TRUE)
+# which(weightMat2 >= 0.03, arr.ind = TRUE)
+for (i in 1:length(rownames(weightMat2))) {
+  for (j in 1:length(colnames(weightMat2))){
+    if (net_synmat2[i,j] < threshold1 & weightMat2[i,j] < threshold){
+      final_mat_syn[i,j] = 0
+    }
+  }
+}
+which(final_mat_syn != 0, arr.ind = TRUE)
 ```
 
 ```{r}
-##### IGNORE ######
-
 # Reconstruct GRN of real (Bertie) data using two separate methods: CLR and your method.
 
 # preprocessing bertie data
 bertie_expDat = as.matrix(seurat_bertie[["RNA"]]@data)
 
-# performing CLR on bertie data
+# # performing CLR on bertie data
 bertie_expDat1 = t(bertie_expDat)
-mim_bertie <- build.mim(bertie_expDat1,estimator="spearman")
-net_bertie <- clr(mim_bertie)
+bertie_expDat1 = bertie_expDat1[,1:1400]
+mim_bertie_subset <- build.mim(bertie_expDat1,estimator="spearman")
+net_bertie_subset <- clr(mim_bertie_subset)
 
 # performing GENIE3 on bertie data
 # Genes that are used as candidate regulators
-regulators <- rownames(seurat_bertie[["RNA"]])
+regulators <- rownames(bertie_expDat[1:1400,])
+bertie_expDat1 = bertie_expDat[1:1400,]
 
 #nTrees and nCores set to 50 and 4 to reduce run time
-weightMat_bertie <- GENIE3(bertie_expDat, regulators=regulators, treeMethod="RF",K=73,nTrees=50, nCores=4,verbose=TRUE)
+weightMat_bertie <- GENIE3(bertie_expDat1, regulators=regulators, treeMethod="RF",K=73,nTrees=50, nCores=4,verbose=TRUE)
 
 #get top 5 ranked links
-linkList_bertie <- getLinkList(weightMat, reportMax=5)
+linkList_bertie <- getLinkList(weightMat_bertie, reportMax=5)
 
 #get top links based on threshold?? we will have to choose this or top 5
-linkList1_bertie <- getLinkList(weightMat, threshold=0.1)
+linkList1_bertie <- getLinkList(weightMat_bertie, threshold=0.1)
+
+icol <- str_order(colnames(net_bertie_subset), numeric = TRUE)
+irow <- str_order(rownames(net_bertie_subset), numeric = TRUE)
+net_bertie_subsetmat2 <- net_bertie_subset[irow, icol]
+View(net_bertie_subsetmat2)
+icol <- str_order(colnames(weightMat_bertie), numeric = TRUE)
+irow <- str_order(rownames(weightMat_bertie), numeric = TRUE)
+weightMat_bertie2 <- weightMat_bertie[irow, icol]
+View(weightMat_bertie2)
+
+threshold = 0.03
+threshold1 = 1
+final_mat_bertie = net_bertie_subsetmat2
+# which(net_bertie_subsetmat2 >= 1, arr.ind = TRUE)
+# which(weightMat_bertie2 >= 0.03, arr.ind = TRUE)
+for (i in 1:length(rownames(weightMat_bertie2))) {
+  for (j in 1:length(colnames(weightMat_bertie2))){
+    if (net_bertie_subsetmat2[i,j] < threshold1 & weightMat_bertie2[i,j] < threshold){
+      final_mat_bertie[i,j] = 0
+    }
+  }
+}
+which(final_mat_bertie != 0, arr.ind = TRUE)
 ```
 
 ```{r}
-##### IGNORE ######
+# Cluster and assign identity of bertie data via marker genes, or any of the automated methods we have covered in class. Feel free to convert to a Seurat object first.
 
-# running SCENIC and then GENIE3
-# Suppress loading messages when building the HTML
-suppressPackageStartupMessages({
-  library(SCENIC)
-  library(AUCell)
-  library(RcisTarget)
-  library(KernSmooth)
-  library(BiocParallel)
-  library(ggplot2)
-  library(data.table)
-  library(grid)
-  library(ComplexHeatmap)
-})
+# Part I: SCMAP training and assessment
 
-### Initialize settings
-scenicOptions <- initializeScenic(org="mgi", dbDir="cisTarget_databases", nCores=10)
+# sub-sampling the reference bertie data
+set.seed(10)
+tot_index = 1:dim(sce_bertie)[2]
+subset_index = sample(tot_index, 0.9*length(tot_index)) 
+sce_data = sce_bertie[, subset_index]
+metadata(sce_data) = list()
 
-### Co-expression network
-genesKept <- geneFiltering(bertie_expDat, scenicOptions)
-exprMat_filtered <- bertie_expDat[genesKept, ]
-runCorrelation(exprMat_filtered, scenicOptions)
-exprMat_filtered_log <- log2(exprMat_filtered+1) 
-runGenie3(exprMat_filtered_log, scenicOptions)
+sce_data <- selectFeatures(sce_data, suppress_plot = FALSE)
+table(rowData(sce_data)$scmap_features)
+# plot of the dropout rate vs expression
 
-### Build and score the GRN
-exprMat_log <- log2(exprMat+1)
-scenicOptions@settings$dbs <- scenicOptions@settings$dbs["10kb"] # Toy run settings
-scenicOptions <- runSCENIC_1_coexNetwork2modules(scenicOptions)
-scenicOptions <- runSCENIC_2_createRegulons(scenicOptions, coexMethod=c("top5perTarget")) # Toy run settings
-scenicOptions <- runSCENIC_3_scoreCells(scenicOptions, exprMat_log)
+# indexing reference data set and visualizing it as a heatmap
+colData(sce_data)
+sce_data <- indexCluster(sce_data, cluster_col = "celltype")
+head(metadata(sce_data)$scmap_cluster_index)
+heatmap(as.matrix(metadata(sce_data)$scmap_cluster_index))
 
-# Optional: Binarize activity
-# aucellApp <- plotTsne_AUCellApp(scenicOptions, exprMat_log)
-# savedSelections <- shiny::runApp(aucellApp)
-# newThresholds <- savedSelections$thresholds
-# scenicOptions@fileNames$int["aucell_thresholds",1] <- "int/newThresholds.Rds"
-# saveRDS(newThresholds, file=getIntName(scenicOptions, "aucell_thresholds"))
-scenicOptions <- runSCENIC_4_aucell_binarize(scenicOptions)
-tsneAUC(scenicOptions, aucType="AUC") # choose settings
+# Part 2: Clustering and cell-typing of bertie data
 
-# # output/Step2_MotifEnrichment_preview.html in detail/subset:
-# motifEnrichment_selfMotifs_wGenes <- loadInt(scenicOptions, "motifEnrichment_selfMotifs_wGenes")
-# tableSubset <- motifEnrichment_selfMotifs_wGenes[highlightedTFs=="Sox8"]
-# viewMotifs(tableSubset) 
-# 
-# # output/Step2_regulonTargetsInfo.tsv in detail: 
-# regulonTargetsInfo <- loadInt(scenicOptions, "regulonTargetsInfo")
-# tableSubset <- regulonTargetsInfo[TF=="Stat6" & highConfAnnot==TRUE]
-# viewMotifs(tableSubset) 
+seurat_bertie <- as.Seurat(sce_bertie, counts = "counts", data = "logcounts")
+seurat_bertie = NormalizeData(seurat_bertie, normalization.method = "LogNormalize")
+# identifying highly variable features
+seurat_bertie <- FindVariableFeatures(seurat_bertie, selection.method = "vst", nfeatures = 2000)
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(seurat_bertie), 10)
 
-# Cell-type specific regulators (RSS): 
-regulonAUC <- loadInt(scenicOptions, "aucell_regulonAUC")
-rss <- calcRSS(AUC=getAUC(regulonAUC), cellAnnotation=cellInfo[colnames(regulonAUC), "CellType"], )
-rssPlot <- plotRSS(rss)
-plotly::ggplotly(rssPlot$plot)
+# scaling data in dataset
+all.genes <- rownames(seurat_bertie)
+seurat_bertie <- ScaleData(seurat_bertie, features = all.genes)
+
+# performing linear dimensional reduction (PCA)
+seurat_bertie <- RunPCA(seurat_bertie, features = VariableFeatures(object = seurat_bertie))
+# Examine and visualize PCA results a few different ways
+print(seurat_bertie[["pca"]], dims = 1:5, nfeatures = 5)
+DimPlot(seurat_bertie, reduction = "pca")
+
+# determining dimensionality of dataset using ElbowPlot
+ElbowPlot(seurat_bertie, ndims = 50)
+
+# clustering cells of spangler data (using Louvain algorithm as default)
+# choose top 33 PCs as significant PCs
+seurat_bertie <- FindNeighbors(seurat_bertie, dims = 1:40)
+seurat_bertie <- FindClusters(seurat_bertie, resolution = 0.5)
+# Look at cluster IDs of the first 5 cells
+head(Idents(seurat_bertie), 5)
+
+# running non-linear dimensional reduction and visualizing
+seurat_bertie <- RunUMAP(seurat_bertie, dims = 1:40)
+DimPlot(seurat_bertie, reduction = "umap", label = TRUE)
+
+# performing cell-typing on bertie data
+
+# converting Seurat object to a SingleCellExperiment
+sce_bertie <- as.SingleCellExperiment(seurat_bertie)
+rowData(sce_bertie)$feature_symbol <- rownames(sce_bertie)
+sce_bertie <- sce_bertie[!duplicated(rownames(sce_bertie)), ]
+
+# generating Sankey diagram
+scmapCluster_results <- scmapCluster(
+  projection = sce_bertie, 
+  index_list = list(query = metadata(sce_data)$scmap_cluster_index),
+  threshold = 0.4
+)
+head(scmapCluster_results$scmap_cluster_labs)
+head(scmapCluster_results$scmap_cluster_siml)
+plot(
+  getSankey(
+    colData(sce_bertie)$seurat_clusters, 
+    scmapCluster_results$scmap_cluster_labs[,'query'],
+    plot_height = 400
+  )
+)
+
+seurat_bertie@meta.data$pred_types = extractClassLabel(scmapCluster_results, sce_bertie)
+DimPlot(seurat_bertie, reduction = "umap", group.by = 'pred_types')
+
+# find markers for every cluster compared to all remaining cells, report only the positive ones
+bertie.markers <- FindAllMarkers(seurat_bertie, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+bertie.markers %>% group_by(cluster) %>% top_n(n = 5, wt = avg_log2FC)
+# generating an expression heatmap for the top 5 markers for each cluster
+top5 <- bertie.markers %>% group_by(cluster) %>% top_n(n = 5, wt = avg_log2FC)
+DoHeatmap(seurat_bertie, features = top5$gene) + NoLegend()
+
 ```
 
 ```{r}
 # Extract subnetworks. Perform enrichment analysis to support findings
+
+# extracting subnetworks????
+celltype1_index = which(sce_bertie$pred_types == 'Blood progenitors 1')
+cells1 = seurat_bertie[,celltype1_index]
+
+# gene enrichment analysis using fgsea
+library(presto)
+bertie.genes <- wilcoxauc(seurat_bertie, 'seurat_clusters')
+head(bertie.genes)
+dplyr::count(bertie.genes, group)
+library(msigdbr)
+library(fgsea)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+m_df<- msigdbr(species = "Homo sapiens", category = "C7")
+head(m_df)
+
+fgsea_sets<- m_df %>% split(x = .$gene_symbol, f = .$gs_name)
+fgsea_sets$GSE11057_NAIVE_VS_MEMORY_CD4_TCELL_UP
+
+bertie.genes %>%
+  dplyr::filter(group == "0") %>%
+  arrange(desc(logFC), desc(auc)) %>%
+  head(n = 10)
+cluster0.genes<- bertie.genes %>%
+  dplyr::filter(group == "0") %>%
+  arrange(desc(auc)) %>% 
+  dplyr::select(feature, auc)
+ranks<- deframe(cluster0.genes)
+head(ranks)
+
+fgseaRes<- fgsea(fgsea_sets, stats = ranks, nperm = 1000)
+fgseaResTidy <- fgseaRes %>%
+  as_tibble() %>%
+  arrange(desc(NES))
+fgseaResTidy %>% 
+  dplyr::select(-leadingEdge, -ES, -nMoreExtreme) %>% 
+  arrange(padj) %>% 
+  head()
+# only plot the top 20 pathways
+ggplot(fgseaResTidy %>% filter(padj < 0.008) %>% head(n= 20), aes(reorder(pathway, NES), NES)) +
+  geom_col(aes(fill= NES < 7.5)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Hallmark pathways NES from GSEA") + 
+  theme_minimal()
+plotEnrichment(fgsea_sets[["GSE10325_CD4_TCELL_VS_MYELOID_UP"]],
+               ranks) + labs(title="GSE10325 CD4 TCELL VS MYELOID UP")
+
+
+# other way to do gene enrichment analysis
+# enrichr method
+library(enrichR)
+expMerged1 = cbind(bertie_subnet1,bertie_subnet2, ...) #combined expression matrix of subnetworks?
+dbs<-c("Mouse_Gene_Atlas")
+
+#testing between subnetwork 1 and 2
+upIn12 = findDiffGenes(expMerged1,cname1 = "Subnet1", cname2 = "Subnet2")
+enr12<-enrichr(upIn12,dbs[1])
+enr12[[1]][1:15,1:4]
+#testing between subnetwork 1 and 3
+upIn13 = findDiffGenes(expMerged1,cname1 = "Subnet1", cname2 = "Subnet3")
+enr13<-enrichr(upIn13,dbs[1])
+enr13[[1]][1:15,1:4]
+#testing between subnetwork 2 and 3
+upIn23 = findDiffGenes(expMerged1,cname1 = "Subnet2", cname2 = "Subnet3")
+enr23<-enrichr(upIn23,dbs[1])
+enr23[[1]][1:15,1:4]
 
 ```
 
@@ -219,27 +354,24 @@ plotly::ggplotly(rssPlot$plot)
 # Devise a method to infer cell-cell signaling interaction networks and utilize it to reconstruct the cell-cell interaction network of the data.
 
 library(SingleCellSignalR)
-data(example_dataset, package = "SingleCellSignalR")
-data = example_dataset
-genes = data$genes
-rownames(data) = genes
-data = data[,-1]
-clust <- clustering(data = data, n.cluster = 4, n = 10, method = "simlr",write = FALSE,pdf=FALSE)
-clust.ana <- cluster_analysis(data = data, genes = rownames(data), cluster = clust$cluster, write = FALSE)
-signal <- cell_signaling(data = data, genes = rownames(data), cluster = clust$cluster, write = FALSE)
-inter.net <- inter_network(data = data, signal = signal, genes = genes, cluster = clust$cluster, write = FALSE)
-visualize_interactions(signal = signal)
 
 seurat_bertie <- as.Seurat(sce_bertie, counts = "counts", data = "logcounts")
 seurat_bertie = NormalizeData(seurat_bertie, normalization.method = "LogNormalize")
 bertie_expDat = as.matrix(seurat_bertie[["RNA"]]@data)
-bertie_clust <- clustering(data = bertie_expDat, n.cluster = 4, n = 10, method = "simlr",write = FALSE,pdf=FALSE)
-bertie_clust.ana <- cluster_analysis(data = bertie_expDat, genes = rownames(bertie_expDat), cluster = bertie_clust$cluster, write = FALSE)
-bertie_signal <- cell_signaling(data = bertie_expDat, genes = rownames(bertie_expDat), cluster = bertie_clust$cluster, write = FALSE)
-# getting an error in inter.net
-inter.net <- inter_network(data = bertie_expDat, signal = bertie_signal, genes = rownames(bertie_expDat), cluster = bertie_clust$cluster, write = FALSE)
-visualize_interactions(signal = bertie_signal)
+data = bertie_expDat
+genes = rownames(data)
+data = data[,-1]
 
+library(HGNChelper)
+checkGeneSymbols(genes)
+HUGO_genes = findExcelGeneSymbols(genes,mog.map = read.csv(system.file("extdata/mog_map.csv", package ="HGNChelper"), as.is = TRUE), regex = "impossibletomatch^")
+
+clust <- clustering(data = data, n.cluster = 4, n = 10, method = "simlr",write = FALSE,pdf=FALSE)
+clust.ana <-  cluster_analysis(data = data, genes = genes, cluster = clust$cluster, write = FALSE)
+signal <- cell_signaling(data = data, genes = HUGO_genes, cluster = clust$cluster, write = FALSE)
+# getting an error in inter.net because signal is list of 0 length (problem with gene list names)
+inter.net <- inter_network(data = data, signal = signal, genes = genes, cluster = clust$cluster, write = FALSE)
+visualize_interactions(signal = signal)
 ```
 
 ```{r}
