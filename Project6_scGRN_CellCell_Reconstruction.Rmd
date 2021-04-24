@@ -225,7 +225,7 @@ DimPlot(seurat_bertie, reduction = "umap", label = TRUE)
 
 # finding differentially expressed features (cluster biomarkers) for all clusters
 bertie.markers <- FindAllMarkers(seurat_bertie, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-top50markers = bertie.markers %>% group_by(cluster) %>% top_n(n = 50, wt = avg_log2FC)
+top150markers = bertie.markers %>% group_by(cluster) %>% top_n(n = 150, wt = avg_log2FC)
 # generating an expression heatmap for the top 5 markers for each cluster
 top5 <- bertie.markers %>% group_by(cluster) %>% top_n(n = 5, wt = avg_log2FC)
 DoHeatmap(seurat_bertie, features = top5$gene) + NoLegend()
@@ -331,24 +331,25 @@ pluripotency_markers = c('Acvr2b', 'Alcam', 'Arid1b', 'Ars2', 'Ash2l', 'Axin2', 
 # from this code from earlier
 # # finding differentially expressed features (cluster biomarkers) for all clusters
 # bertie.markers <- FindAllMarkers(seurat_bertie, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-# top50markers = bertie.markers %>% group_by(cluster) %>% top_n(n = 50, wt = avg_log2FC)
+# top150markers = bertie.markers %>% group_by(cluster) %>% top_n(n = 150, wt = avg_log2FC)
 
-markers = top50markers$gene
+markers = top150markers$gene
 count = rep(0, 10)
 for (i in 1:length(pluripotency_markers)){
   for (j in 1:length(markers)){
     if (markers[j] == pluripotency_markers[i]){
-      cluster_num = floor(j/50)+1
+      cluster_num = floor(j/150)+1
       count[cluster_num] = count[cluster_num] + 1
     }
   }
 }
+# The count vector is number of pluripotency markers that are present in differentially expressed genes list for each cluster. It is a relative indicator of the potency of each cluster 0-9.
 
-# trajectory inference on bertie data
+# trajectory inference on bertie data to support cell fate potency method results
 library(slingshot)
 library(RColorBrewer)
 sce_bertie <- as.SingleCellExperiment(seurat_bertie)
-bertie_lineages =  getLineages(reducedDims(sce_bertie)$PCA[, 1:3], colData(sce_bertie)[, "pred_types"])
+bertie_lineages =  getLineages(reducedDims(sce_bertie)$PCA[, 1:3], colData(sce_bertie)[, "pred_types"], start.clus = 'Caudal epiblast')
 bertie_lineages
 bertie_curves <- getCurves(bertie_lineages)
 
