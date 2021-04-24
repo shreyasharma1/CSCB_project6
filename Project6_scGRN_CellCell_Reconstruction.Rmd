@@ -372,43 +372,6 @@ enr23[[1]][1:15,1:4]
 ```
 
 ```{r}
-### IGNORE ####
-
-# Devise a method to quantify cell fate potency, and apply it to the Bertie data.
-
-# running RaceID/StemID to find potency
-library(RaceID)
-seurat_bertie <- as.Seurat(sce_bertie, counts = "counts", data = "logcounts")
-bertie_expMat = as.matrix(seurat_bertie[["RNA"]]@data)
-library("Matrix")
-expMat = as(bertie_expMat, "dgCMatrix")
-sc <- SCseq(expMat)
-sc <- filterdata(sc,mintotal=2000, minnumber=0)
-fdata <- getfdata(sc)
-sc <- compdist(sc,metric="pearson")
-sc <- clustexp(sc)
-
-plotsaturation(sc,disp=FALSE)
-sc <- findoutliers(sc, outminc=1)
-plotbackground(sc)
-plotsensitivity(sc)
-plotoutlierprobs(sc)
-clustheatmap(sc)
-sc <- comptsne(sc)
-plotmap(sc)
-
-ltr <- Ltree(sc)
-ltr <- compentropy(ltr)
-ltr <- projcells(ltr)
-ltr <- lineagegraph(ltr)
-ltr <- comppvalue(ltr)
-plotgraph(ltr,scthr=0.2,showCells=FALSE,showMap=TRUE)
-x <- compscore(ltr,scthr=0.2)
-plotlinkscore(ltr)
-projenrichment(ltr)
-```
-
-```{r}
 # devise a method to quantify cell fate potency as we have defined in class, and apply it to the Bertie data.
 
 # list of stem cell markers
