@@ -484,12 +484,13 @@ DimPlot(seurat_bertie, reduction = "umap", group.by = 'pred_types')
 # source("Project5_helper.R")
 sce_bertie<-utils_loadObject("bertie_e7.5_proj6.rda")
 bertie_expMat <- sce_bertie@metadata[[1]]
-subnet_threshold = 0.50
+weights = as.matrix(as.double(bertie_resultlink2[,3]))
+subnet_threshold = 0.5*max(weights)
 close_pairs = bertie_resultlink2[which(bertie_resultlink2[,3]>=subnet_threshold),]
-subnet1 = c("Cpox", "Tmem14c", "Smim1", "Tsen34", "Cited4", "Sod2", "Hbb-bh1", "Hba-x", "Hba-a1", "Hba-a2", "Hmbs", "Blvrb")
-subnet2 = c("Ctsz", "Amn", "Dab2", "Glrx", "Apom", "Apoa1", "Rbp4", "Ttr", "Ctsh", "Spink1")
-subnet3 = c("mt-Atp6", "mt-Cytb", "mt-Nd4")
-subnet4 = c("Pa2g4", "Ncl", "Nolc1", "Nop56", "Hspd1", "Umps")
+subnet1 = c("mt-Atp6", "mt-Cytb")
+subnet2 = c("Rhox5", "Trap1a")
+subnet3 = c("Ctsz", "Amn", "Dab2", "Glrx", "Apom", "Apoa1", "Rbp4", "Ttr", "Ctsh", "Spink1")
+subnet4 = c("Cpox", "Tmem14c", "Smim1", "Tsen34", "Hbb-bh1", "Hba-x", "Hba-a1", "Hba-a2", "Hmbs", "Blvrb")
 
 # extracting subnetworks
 subnet_exp_by_cluster <- function(subnet) {
@@ -520,11 +521,6 @@ subnet_exp_by_cluster <- function(subnet) {
   rownames(all_subnet_exp) = subnet
   return(all_subnet_exp)
 }
-
-subnet1_exp = subnet_exp_by_cluster(subnet1)
-subnet2_exp = subnet_exp_by_cluster(subnet2)
-subnet3_exp = subnet_exp_by_cluster(subnet3)
-subnet4_exp = subnet_exp_by_cluster(subnet4)
 
 # gene enrichment analysis using enrichr method
 library(enrichR)
