@@ -171,7 +171,7 @@ library(GENIE3)
 data = c()
 sample_num = 30
 cell_num = 1
-threshold = 3 # pick 1~10
+threshold = 2 # pick 1~10
 
 for (i in 1:sample_num){
   bulk_vals = c()
@@ -213,8 +213,13 @@ syn_linkList2 <- getLinkList(syn_aracneMat)
 syn_linkList2<-syn_linkList2[which(syn_linkList2$weight>=aracne_th),]
 syn_linkb <- cbind.data.frame(regulatoryGene=syn_linkList2$regulatoryGene , targetGene=syn_linkList2$targetGene)
 
-# intersect two links
-syn_resultlink <- merge(syn_linka,syn_linkb)
+# UNION two links
+syn_resultlink <- merge(syn_linka,syn_linkb, all=TRUE)
+
+# assess our new method
+gold <- cbind.data.frame(regulatoryGene = GRN$TF,targetGene=GRN$Target)
+check <- merge(syn_resultlink,gold)
+
 
 dimensions = dim(syn_resultlink)
 dimensions_GENIE = dim(syn_linkList)
