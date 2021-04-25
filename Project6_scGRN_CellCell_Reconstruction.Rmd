@@ -133,6 +133,10 @@ AUPRcurve <- function(threshList, network, gold){
   }
   plot(r, p,
        main = "Precision Recall Graph")
+  # install.packages("MESS")
+  require(MESS)
+  AUPR_val = auc(r,p, type = 'spline')
+  return(AUPR_val)
 }
 
 ```
