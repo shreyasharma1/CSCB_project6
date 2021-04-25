@@ -480,28 +480,85 @@ DimPlot(seurat_bertie, reduction = "umap", group.by = 'pred_types')
 ```{r}
 # Extract subnetworks. Perform enrichment analysis to support findings
 
-# extracting subnetworks????
-celltype1_index = which(sce_bertie$pred_types == 'Blood progenitors 1')
-cells1 = seurat_bertie[,celltype1_index]
+# setwd("/Users/michellechang/Downloads")
+# source("Project5_helper.R")
+sce_bertie<-utils_loadObject("bertie_e7.5_proj6.rda")
+bertie_expMat <- sce_bertie@metadata[[1]]
+subnet_threshold = 0.50
+close_pairs = bertie_resultlink2[which(bertie_resultlink2[,3]>=subnet_threshold),]
+subnet1 = c("Cpox", "Tmem14c", "Smim1", "Tsen34", "Cited4", "Sod2", "Hbb-bh1", "Hba-x", "Hba-a1", "Hba-a2", "Hmbs", "Blvrb")
+subnet2 = c("Ctsz", "Amn", "Dab2", "Glrx", "Apom", "Apoa1", "Rbp4", "Ttr", "Ctsh", "Spink1")
+subnet3 = c("mt-Atp6", "mt-Cytb", "mt-Nd4")
+subnet4 = c("Pa2g4", "Ncl", "Nolc1", "Nop56", "Hspd1", "Umps")
+
+# extracting subnetworks
+subnet_exp_by_cluster <- function(subnet) {
+  clusters <- unique(seurat_bertie@meta.data$pred_types)
+  cluster_exp = c()
+  cell_types = colnames(bertie_expMat)
+  all_subnet_exp = c()
+  for (i in 1:length(clusters)){
+    index = 0
+    for (j in 1:length(cell_types)){
+      if (as.character(clusters[i]) == as.character(cell_types[j])){
+        index = j
+      }
+    }
+    cluster_exp = as.matrix(bertie_expMat[,index])
+    rownames(cluster_exp) = rownames(bertie_expMat)
+    subnet_exp = rep(0, length(subnet))
+    for (j in 1:length(cluster_exp)){
+      for (k in 1:length(subnet)){
+        if(rownames(cluster_exp)[j] == subnet[k]){
+          subnet_exp[k] = cluster_exp[j]
+        }
+      }
+    }
+    all_subnet_exp = cbind(all_subnet_exp, subnet_exp)
+  }
+  colnames(all_subnet_exp) = clusters
+  rownames(all_subnet_exp) = subnet
+  return(all_subnet_exp)
+}
+
+subnet1_exp = subnet_exp_by_cluster(subnet1)
+subnet2_exp = subnet_exp_by_cluster(subnet2)
+subnet3_exp = subnet_exp_by_cluster(subnet3)
+subnet4_exp = subnet_exp_by_cluster(subnet4)
 
 # gene enrichment analysis using enrichr method
 library(enrichR)
-expMerged1 = cbind(bertie_subnet1,bertie_subnet2, ...) #combined expression matrix of subnetworks?
+expMerged = c()
+clusters <- unique(seurat_bertie@meta.data$pred_types)
+cell_types = colnames(bertie_expMat)
+for (i in 1:length(clusters)){
+  index = 0
+  for (j in 1:length(cell_types)){
+    if (as.character(clusters[i]) == as.character(cell_types[j])){
+      index = j
+    }
+  }
+  cluster_exp = as.matrix(bertie_expMat[,index])
+  expMerged = cbind(expMerged, cluster_exp)
+}
+colnames(expMerged) = clusters
+rownames(expMerged) = rownames(bertie_expMat)
 dbs<-c("Mouse_Gene_Atlas")
 
-#testing between subnetwork 1 and 2
-upIn12 = findDiffGenes(expMerged1,cname1 = "Subnet1", cname2 = "Subnet2")
-enr12<-enrichr(upIn12,dbs[1])
-enr12[[1]][1:15,1:4]
-#testing between subnetwork 1 and 3
-upIn13 = findDiffGenes(expMerged1,cname1 = "Subnet1", cname2 = "Subnet3")
-enr13<-enrichr(upIn13,dbs[1])
-enr13[[1]][1:15,1:4]
-#testing between subnetwork 2 and 3
-upIn23 = findDiffGenes(expMerged1,cname1 = "Subnet2", cname2 = "Subnet3")
-enr23<-enrichr(upIn23,dbs[1])
-enr23[[1]][1:15,1:4]
-
+# this below gene enrichment analysis prints out like 50 different ones lol because I'm comparing each of the 10 clusters to each other.... I don't think that's how we're supposed to do it but there's no way to do it on the subnetworks because they don't have the same dimensions
+for (i in 1:length(clusters)){
+  for (j in 1:length(clusters)){
+    if (i != j){
+      cname1 = clusters[i]
+      cname2 = clusters[j]
+      print(cname1)
+      print(cname2)
+      upIn12 = findDiffGenes(expMerged,cname1 = cname1, cname2 = cname2)
+      enr12<-enrichr(upIn12,dbs[1])
+      print(enr12[[1]][1:15,1:4])     
+    }
+  }
+}
 ```
 
 ```{r}
