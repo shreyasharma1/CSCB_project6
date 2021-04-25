@@ -251,6 +251,69 @@ colnames(syn_resultlink2) = c("regulatoryGene", "targetGene", "weight")
 ```
 
 ```{r}
+# function to find precision and recall for our own GRN reconstruction method on the synthetic data
+findPR <- function(threshold, network, gold){
+  networkNEW = c()
+  for(r in 1:nrow(network)){
+    if(as.double(network[r,3]) >= threshold*max(as.double(network[,3]))){ 
+      networkNEW <- rbind(networkNEW, network[r,])
+    }
+  }
+
+  # since there isn't a total overlap between the gold standard relationships and the model check if there is overlap 
+  TP <- 0
+  FN <- 0
+  FP <- 0
+  
+  for(i in 1:nrow(networkNEW)){
+    for(j in 1:nrow(gold)){
+      if(as.character(networkNEW[i,1]) == as.character(gold[j,1]) && as.character(networkNEW[i,2]) == as.character(gold[j,3])){# if true positive
+        TP <- TP + 1
+      }
+      else if(as.character(networkNEW[i,1]) == as.character(gold[j,1]) && as.character(networkNEW[i,2]) != as.character(gold[j,3])){# if makes a pair where one gene is in gold standard and one isnt, FP
+        FP <- FP + 1
+      }
+      else if(as.character(networkNEW[i,1]) != as.character(gold[j,1]) && as.character(networkNEW[i,2]) == as.character(gold[j,3])){# if makes a pair where one gene is in gold standard and one isnt, FP
+        FP <- FP + 1
+      }
+      else{# if not TP or FP, group as FN
+        FN <- FN + 1
+      }
+    }
+  }
+  
+  # now we have  counts for each category, we can calculate the precision and recall
+  recall = TP / (TP + FN)
+  precision = TP / (TP + FP)
+  #return both
+  pr = c(precision, recall)
+  return(pr)
+}
+
+# function to find AUPR curve
+AUPRcurve <- function(threshList, network, gold){
+  p <- c()
+  r <- c()
+  for(thresh in threshList){
+    temp <- findPR(thresh, network, gold)
+    p <- c(p, temp[1])
+    r <- c(r, temp[2])
+    # print(temp)
+  }
+  plot(r, p,
+       main = "Precision Recall Graph")
+  # install.packages("MESS")
+  require(MESS)
+  AUPR_val = auc(r,p, type = 'spline')
+  return(AUPR_val)
+}
+
+# AUPR values for the synthetic data using our own GRN reconstruction method
+tl <- c(0.5,0.6,0.7,0.8,0.9)
+syncombo_AUPR = AUPRcurve(tl, syn_resultlink2, GRN)
+```
+
+```{r}
 # Reconstruct GRN of real (Bertie) data using two separate methods: CLR and your method.
 
 library(GENIE3)
@@ -288,8 +351,8 @@ bertie_linkList2 <- getLinkList(bertie_aracneMat)
 bertie_linkList2<-bertie_linkList2[which(bertie_linkList2$weight>=aracne_th),]
 bertie_linkb <- cbind.data.frame(regulatoryGene=bertie_linkList2$regulatoryGene, targetGene=bertie_linkList2$targetGene)
 
-# intersect two links
-bertie_resultlink <- merge(bertie_linka,bertie_linkb)
+# UNION two links
+bertie_resultlink <- merge(bertie_linka,bertie_linkb, all=TRUE)
 
 dimensions = dim(bertie_resultlink)
 dimensions_GENIE = dim(bertie_linkList)
@@ -318,71 +381,6 @@ for (i in 1:dimensions[1]){
 weight = rowMeans(cbind(weight_GENIE, weight_ARACNE), na.rm=TRUE)
 bertie_resultlink2 = cbind(GRN_combo,weight)
 colnames(bertie_resultlink2) = c("regulatoryGene", "targetGene", "weight")
-```
-
-```{r}
-# function to find precision and recall for our own GRN reconstruction method
-findPR <- function(threshold, network, gold){
-  networkNEW = c()
-  for(r in 1:nrow(network)){
-    if(as.double(network[r,3]) >= threshold*max(as.double(network[,3]))){ 
-      networkNEW <- rbind(networkNEW, network[r,])
-    }
-  }
-
-  # since there isn't a total overlap between the gold standard relationships and the model check if there is overlap 
-  TP <- 0
-  FN <- 0
-  FP <- 0
-  end = dim(gold)[2]
-  
-  for(i in 1:nrow(networkNEW)){
-    for(j in 1:nrow(gold)){
-      if(as.character(networkNEW[i,1]) == as.character(gold[j,1]) && as.character(networkNEW[i,2]) == as.character(gold[j,end])){# if true positive
-        TP <- TP + 1
-      }
-      else if(as.character(networkNEW[i,1]) == as.character(gold[j,1]) && as.character(networkNEW[i,2]) != as.character(gold[j,end])){# if makes a pair where one gene is in gold standard and one isnt, FP
-        FP <- FP + 1
-      }
-      else if(as.character(networkNEW[i,1]) != as.character(gold[j,1]) && as.character(networkNEW[i,2]) == as.character(gold[j,end])){# if makes a pair where one gene is in gold standard and one isnt, FP
-        FP <- FP + 1
-      }
-      else{# if not TP or FP, group as FN
-        FN <- FN + 1
-      }
-    }
-  }
-  
-  # now we have  counts for each category, we can calculate the precision and recall
-  recall = TP / (TP + FN)
-  precision = TP / (TP + FP)
-  #return both
-  pr = c(precision, recall)
-  return(pr)
-}
-
-# function to find AUPR curve
-AUPRcurve <- function(threshList, network, gold){
-  p <- c()
-  r <- c()
-  for(thresh in threshList){
-    temp <- findPR(thresh, network, gold)
-    p <- c(p, temp[1])
-    r <- c(r, temp[2])
-    # print(temp)
-  }
-  plot(r, p,
-       main = "Precision Recall Graph")
-  # install.packages("MESS")
-  require(MESS)
-  AUPR_val = auc(r,p, type = 'spline')
-  return(AUPR_val)
-}
-
-# AUPR values for the synthetic and bertie (small version for now) using our own GRN reconstruction method
-tl <- c(0.5,0.6,0.7,0.8,0.9)
-syncombo_AUPR = AUPRcurve(tl, syn_resultlink2, GRN)
-bertiecombo_AUPR = AUPRcurve(tl, bertie_resultlink2, GRN) # WHAT IS THE GOLD STANDARD FOR BERTIE????
 ```
 
 ```{r}
