@@ -164,9 +164,9 @@ AUPRcurve(tl, smallSyn, GRN)
 ```
 
 ```{r}
-# Devise your own single-cell GRN reconstruction method
-# Use your method to reconstruct the GRN of the synthetic single cell data. Compare performance to existing method
+# Devise your own single-cell GRN reconstruction method. Use your method to reconstruct the GRN of the synthetic single cell data. Compare performance to existing method
 
+library(GENIE3)
 # set the parameters (# of cells and samples & threshold)
 data = c()
 sample_num = 30
@@ -204,7 +204,7 @@ syn_linka <- cbind.data.frame(regulatoryGene=syn_linkList$regulatoryGene , targe
 # Reconstruct grn using aracne
 syn_mim_part2 <- build.mim(data,estimator="pearson") 
 #net_part2 <- clr(mim_part2)
-syn_aracneMat <- aracne(syn_mim_part2, eps=0.1)
+syn_aracneMat <- aracne(syn_mim_part2, eps=0)
 
 # normalize the value of threshold
 aracne_th <- (((threshold - 1) * (max(syn_aracneMat)-min(syn_aracneMat))) / 9) + min(syn_aracneMat)
@@ -215,47 +215,169 @@ syn_linkb <- cbind.data.frame(regulatoryGene=syn_linkList2$regulatoryGene , targ
 
 # intersect two links
 syn_resultlink <- merge(syn_linka,syn_linkb)
+
+dimensions = dim(syn_resultlink)
+dimensions_GENIE = dim(syn_linkList)
+dimensions_ARACNE = dim(syn_linkList2)
+weight_GENIE = rep(0,dimensions[1])
+weight_ARACNE = rep(0,dimensions[1])
+GRN_combo = matrix(unlist(syn_resultlink), ncol = 2)
+GRN_GENIE = matrix(unlist(syn_linka), ncol = 2)
+GRN_GENIE = cbind(GRN_GENIE, syn_linkList$weight)
+GRN_ARACNE = matrix(unlist(syn_linkb), ncol = 2)
+GRN_ARACNE = cbind(GRN_ARACNE,syn_linkList2$weight)
+for (i in 1:dimensions[1]){
+  for (j in 1:dimensions_GENIE[1]){
+    if (GRN_combo[i,1] == GRN_GENIE[j,1] && GRN_combo[i,2] == GRN_GENIE[j,2]){
+      options(digits = 10)
+      weight_GENIE[i] = as.double(GRN_GENIE[j,3])
+    }
+  }
+  for (j in 1:dimensions_ARACNE[1]){
+    if (GRN_combo[i,1] == GRN_ARACNE[j,1] && GRN_combo[i,2] == GRN_ARACNE[j,2]){
+      options(digits = 10)
+      weight_ARACNE[i] = as.double(GRN_ARACNE[j,3])
+    }
+  }
+}
+weight = rowMeans(cbind(weight_GENIE, weight_ARACNE), na.rm=TRUE)
+syn_resultlink2 = cbind(GRN_combo,weight)
+colnames(syn_resultlink2) = c("regulatoryGene", "targetGene", "weight")
 ```
 
 ```{r}
 # Reconstruct GRN of real (Bertie) data using two separate methods: CLR and your method.
 
-# preprocessing bertie data
-bertie_expMat <- sce_bertie@metadata[[1]]
-bertie_expMat1 <- t(bertie_expMat)
+library(GENIE3)
+bertie <- sce_bertie@metadata[[1]]
+data <- t(bertie)
+bertie_exprMatr <- t(data)
+set.seed(123) # For reproducibility of results
 
 # performing CLR on bertie data
-bertie_mim <- build.mim(bertie_expMat1,estimator="spearman")
+bertie_mim <- build.mim(data,estimator="spearman")
 bertie_net <- clr(bertie_mim)
 #get target-regulator links 
 bertie_linkListCLR<- getLinkList(bertie_net)
 
-set.seed(123) # For reproducibility of results
-# performing GENIE3 on bertie data
-# Genes that are used as candidate regulators
-regulators <- rownames(bertie_expMat)
-bertie_expMat = data.matrix(bertie_expMat, rownames.force = NA)
-bertie_weightMat <- GENIE3(bertie_expMat, regulators=regulators, nCores=4, verbose=TRUE)
+# to decrease the computing times # to run this need to install the package "doRNG"
+bertie_weightMat2 <- GENIE3(bertie_exprMatr, nCores=4, verbose=TRUE)
 
 # normalize the value of threshold
-Gen_th <- (((threshold - 1) * (max(bertie_weightMat)-min(bertie_weightMat))) / 9) + min(bertie_weightMat)
+Gen_th <- (((threshold - 1) * (max(bertie_weightMat2)-min(bertie_weightMat2))) / 9) + min(bertie_weightMat2)
 
 #get link above the threshold
-bertie_linkList <- getLinkList(bertie_weightMat)
+bertie_linkList <- getLinkList(bertie_weightMat2)
 bertie_linkList<-bertie_linkList[which(bertie_linkList$weight>=Gen_th),]
-bertie_linka <- cbind.data.frame(regulatoryGene=bertie_linkList$regulatoryGene , targetGene=bertie_linkList$targetGene)
+bertie_linka <- cbind.data.frame(regulatoryGene=bertie_linkList$regulatoryGene, targetGene=bertie_linkList$targetGene)
 
 # Reconstruct grn using aracne
-bertie_aracneMat <- aracne(bertie_mim, eps=0.1)
+bertie_mim_part2 <- build.mim(data,estimator="pearson")
+#net_part2 <- clr(mim_part2)
+bertie_aracneMat <- aracne(bertie_mim_part2, eps=0)
+
 # normalize the value of threshold
 aracne_th <- (((threshold - 1) * (max(bertie_aracneMat)-min(bertie_aracneMat))) / 9) + min(bertie_aracneMat)
 
 bertie_linkList2 <- getLinkList(bertie_aracneMat)
 bertie_linkList2<-bertie_linkList2[which(bertie_linkList2$weight>=aracne_th),]
-bertie_linkb <- cbind.data.frame(regulatoryGene=bertie_linkList2$regulatoryGene , targetGene=bertie_linkList2$targetGene)
+bertie_linkb <- cbind.data.frame(regulatoryGene=bertie_linkList2$regulatoryGene, targetGene=bertie_linkList2$targetGene)
 
 # intersect two links
 bertie_resultlink <- merge(bertie_linka,bertie_linkb)
+
+dimensions = dim(bertie_resultlink)
+dimensions_GENIE = dim(bertie_linkList)
+dimensions_ARACNE = dim(bertie_linkList2)
+weight_GENIE = rep(0,dimensions[1])
+weight_ARACNE = rep(0,dimensions[1])
+GRN_combo = matrix(unlist(bertie_resultlink), ncol = 2)
+GRN_GENIE = matrix(unlist(bertie_linka), ncol = 2)
+GRN_GENIE = cbind(GRN_GENIE,bertie_linkList$weight)
+GRN_ARACNE = matrix(unlist(bertie_linkb), ncol = 2)
+GRN_ARACNE = cbind(GRN_ARACNE,bertie_linkList2$weight)
+for (i in 1:dimensions[1]){
+  for (j in 1:dimensions_GENIE[1]){
+    if (GRN_combo[i,1] == GRN_GENIE[j,1] && GRN_combo[i,2] == GRN_GENIE[j,2]){
+      options(digits = 10)
+      weight_GENIE[i] = as.double(GRN_GENIE[j,3])
+    }
+  }
+  for (j in 1:dimensions_ARACNE[1]){
+    if (GRN_combo[i,1] == GRN_ARACNE[j,1] && GRN_combo[i,2] == GRN_ARACNE[j,2]){
+      options(digits = 10)
+      weight_ARACNE[i] = as.double(GRN_ARACNE[j,3])
+    }
+  }
+}
+weight = rowMeans(cbind(weight_GENIE, weight_ARACNE), na.rm=TRUE)
+bertie_resultlink2 = cbind(GRN_combo,weight)
+colnames(bertie_resultlink2) = c("regulatoryGene", "targetGene", "weight")
+```
+
+```{r}
+# function to find precision and recall for our own GRN reconstruction method
+findPR <- function(threshold, network, gold){
+  networkNEW = c()
+  for(r in 1:nrow(network)){
+    if(as.double(network[r,3]) >= threshold*max(as.double(network[,3]))){ 
+      networkNEW <- rbind(networkNEW, network[r,])
+    }
+  }
+
+  # since there isn't a total overlap between the gold standard relationships and the model check if there is overlap 
+  TP <- 0
+  FN <- 0
+  FP <- 0
+  end = dim(gold)[2]
+  
+  for(i in 1:nrow(networkNEW)){
+    for(j in 1:nrow(gold)){
+      if(as.character(networkNEW[i,1]) == as.character(gold[j,1]) && as.character(networkNEW[i,2]) == as.character(gold[j,end])){# if true positive
+        TP <- TP + 1
+      }
+      else if(as.character(networkNEW[i,1]) == as.character(gold[j,1]) && as.character(networkNEW[i,2]) != as.character(gold[j,end])){# if makes a pair where one gene is in gold standard and one isnt, FP
+        FP <- FP + 1
+      }
+      else if(as.character(networkNEW[i,1]) != as.character(gold[j,1]) && as.character(networkNEW[i,2]) == as.character(gold[j,end])){# if makes a pair where one gene is in gold standard and one isnt, FP
+        FP <- FP + 1
+      }
+      else{# if not TP or FP, group as FN
+        FN <- FN + 1
+      }
+    }
+  }
+  
+  # now we have  counts for each category, we can calculate the precision and recall
+  recall = TP / (TP + FN)
+  precision = TP / (TP + FP)
+  #return both
+  pr = c(precision, recall)
+  return(pr)
+}
+
+# function to find AUPR curve
+AUPRcurve <- function(threshList, network, gold){
+  p <- c()
+  r <- c()
+  for(thresh in threshList){
+    temp <- findPR(thresh, network, gold)
+    p <- c(p, temp[1])
+    r <- c(r, temp[2])
+    # print(temp)
+  }
+  plot(r, p,
+       main = "Precision Recall Graph")
+  # install.packages("MESS")
+  require(MESS)
+  AUPR_val = auc(r,p, type = 'spline')
+  return(AUPR_val)
+}
+
+# AUPR values for the synthetic and bertie (small version for now) using our own GRN reconstruction method
+tl <- c(0.5,0.6,0.7,0.8,0.9)
+syncombo_AUPR = AUPRcurve(tl, syn_resultlink2, GRN)
+bertiecombo_AUPR = AUPRcurve(tl, bertie_resultlink2, GRN) # WHAT IS THE GOLD STANDARD FOR BERTIE????
 ```
 
 ```{r}
