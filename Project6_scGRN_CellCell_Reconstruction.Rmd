@@ -218,7 +218,7 @@ syn_resultlink <- merge(syn_linka,syn_linkb, all=TRUE)
 
 # assess our new method
 gold <- cbind.data.frame(regulatoryGene = GRN$TF,targetGene=GRN$Target)
-check <- merge(syn_resultlink,gold)
+check <- merge(syn_resultlink,gold) # if you want to see the TP for GENIE (syn_resultlink->linka) and for ARACNE (syn_resultlink->linkb) 
 
 
 dimensions = dim(syn_resultlink)
