@@ -167,11 +167,14 @@ AUPRcurve(tl, smallSyn, GRN)
 # Devise your own single-cell GRN reconstruction method. Use your method to reconstruct the GRN of the synthetic single cell data. Compare performance to existing method
 
 library(GENIE3)
+set.seed(123) # For reproducibility of results
+
 # set the parameters (# of cells and samples & threshold)
 data = c()
 sample_num = 30
 cell_num = 1
-threshold = 2 # pick 1~10
+threshold = 3 # pick 1~10
+dimensions = dim(syn_expDat)
 
 for (i in 1:sample_num){
   bulk_vals = c()
@@ -185,8 +188,6 @@ for (i in 1:sample_num){
 }
 colnames(data) <- colnames(syn_expDat)
 syn_exprMatr <- t(data)
-
-set.seed(123) # For reproducibility of results
 
 # It might take more time to compute
 #weightMat <- GENIE3(exprMatr)
@@ -203,7 +204,6 @@ syn_linka <- cbind.data.frame(regulatoryGene=syn_linkList$regulatoryGene , targe
 
 # Reconstruct grn using aracne
 syn_mim_part2 <- build.mim(data,estimator="pearson") 
-#net_part2 <- clr(mim_part2)
 syn_aracneMat <- aracne(syn_mim_part2, eps=0)
 
 # normalize the value of threshold
@@ -215,11 +215,6 @@ syn_linkb <- cbind.data.frame(regulatoryGene=syn_linkList2$regulatoryGene , targ
 
 # UNION two links
 syn_resultlink <- merge(syn_linka,syn_linkb, all=TRUE)
-
-# assess our new method
-gold <- cbind.data.frame(regulatoryGene = GRN$TF,targetGene=GRN$Target)
-check <- merge(syn_resultlink,gold) # if you want to see the TP for GENIE (syn_resultlink->linka) and for ARACNE (syn_resultlink->linkb) 
-
 
 dimensions = dim(syn_resultlink)
 dimensions_GENIE = dim(syn_linkList)
@@ -248,6 +243,9 @@ for (i in 1:dimensions[1]){
 weight = rowMeans(cbind(weight_GENIE, weight_ARACNE), na.rm=TRUE)
 syn_resultlink2 = cbind(GRN_combo,weight)
 colnames(syn_resultlink2) = c("regulatoryGene", "targetGene", "weight")
+
+# getting link list for CLR method performed earlier
+syn_linkListCLR = getLinkList(net_syn)
 ```
 
 ```{r}
@@ -309,7 +307,7 @@ AUPRcurve <- function(threshList, network, gold){
 }
 
 # AUPR values for the synthetic data using our own GRN reconstruction method
-tl <- c(0.5,0.6,0.7,0.8,0.9)
+tl <- c(0, 0.1, 0.2, 0.3, 0.4) # threshold values above 0.5 are too high and give TP = 0
 syncombo_AUPR = AUPRcurve(tl, syn_resultlink2, GRN)
 ```
 
@@ -522,6 +520,11 @@ subnet_exp_by_cluster <- function(subnet) {
   return(all_subnet_exp)
 }
 
+subnet1_exp = subnet_exp_by_cluster(subnet1)
+subnet2_exp = subnet_exp_by_cluster(subnet2)
+subnet3_exp = subnet_exp_by_cluster(subnet3)
+subnet4_exp = subnet_exp_by_cluster(subnet4)
+
 # gene enrichment analysis using enrichr method
 library(enrichR)
 
@@ -626,6 +629,9 @@ for (i in 1:length(pluripotency_markers)){
   }
 }
 # The count vector is number of pluripotency markers that are present in differentially expressed genes list for each cluster. It is a relative indicator of the potency of each cluster 0-9.
+clusters = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+potency = rbind(clusters,count)
+print(potency)
 
 # trajectory inference on bertie data to support cell fate potency method results
 library(slingshot)
