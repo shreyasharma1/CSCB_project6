@@ -27,6 +27,7 @@ LR_pairs<-utils_loadObject("LR_pairs.rda")
 syn_seurat <- CreateSeuratObject(counts = syn_data, project = "synthetic", min.cells = 3, min.features = 200)
 syn_seurat = NormalizeData(syn_seurat, normalization.method = "LogNormalize")
 syn_expDat = as.matrix(syn_seurat[["RNA"]]@data)
+set.seed(123) # For reproducibility of results
 
 dimensions = dim(syn_expDat)
 pickCells<-function(sampTab, cell_num=25){
@@ -216,7 +217,6 @@ syn_linkb <- cbind.data.frame(regulatoryGene=syn_linkList2$regulatoryGene , targ
 # UNION two links
 syn_resultlink <- merge(syn_linka,syn_linkb, all=TRUE)
 
-
 # Assess our new method- table is uploaded in our final report
 resultlink <- linkc  # linka - genie3, linkb- aracne, linkc- clr, resultlink - new
 TP <- length(rownames(merge(resultlink,gold)))
@@ -226,10 +226,11 @@ recall = TP / (TP + FN)
 precision = TP / (TP + FP)
 assess$clr <- c(TP,precision, recall)
 
-
 assess <- data.frame(matrix(ncol = 4, nrow = 3))
 colnames(assess) <- c("clr", "aracne", "genie3", "new method")
 rownames(assess) <- c("TP","precision","recall")
+
+# formatting resulting link pairs of our GRN reconstruction method with associated weight values
 dimensions = dim(syn_resultlink)
 dimensions_GENIE = dim(syn_linkList)
 dimensions_ARACNE = dim(syn_linkList2)
@@ -366,6 +367,7 @@ bertie_linkb <- cbind.data.frame(regulatoryGene=bertie_linkList2$regulatoryGene,
 # UNION two links
 bertie_resultlink <- merge(bertie_linka,bertie_linkb, all=TRUE)
 
+# formatting resulting link pairs of our GRN reconstruction method with associated weight values
 dimensions = dim(bertie_resultlink)
 dimensions_GENIE = dim(bertie_linkList)
 dimensions_ARACNE = dim(bertie_linkList2)
