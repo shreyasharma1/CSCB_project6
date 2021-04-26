@@ -524,37 +524,84 @@ subnet_exp_by_cluster <- function(subnet) {
 
 # gene enrichment analysis using enrichr method
 library(enrichR)
-expMerged = c()
-clusters <- unique(seurat_bertie@meta.data$pred_types)
-cell_types = colnames(bertie_expMat)
-for (i in 1:length(clusters)){
-  index = 0
-  for (j in 1:length(cell_types)){
-    if (as.character(clusters[i]) == as.character(cell_types[j])){
-      index = j
-    }
-  }
-  cluster_exp = as.matrix(bertie_expMat[,index])
-  expMerged = cbind(expMerged, cluster_exp)
-}
-colnames(expMerged) = clusters
-rownames(expMerged) = rownames(bertie_expMat)
-dbs<-c("Mouse_Gene_Atlas")
 
-# this below gene enrichment analysis prints out like 50 different ones lol because I'm comparing each of the 10 clusters to each other.... I don't think that's how we're supposed to do it but there's no way to do it on the subnetworks because they don't have the same dimensions
-for (i in 1:length(clusters)){
-  for (j in 1:length(clusters)){
-    if (i != j){
-      cname1 = clusters[i]
-      cname2 = clusters[j]
-      print(cname1)
-      print(cname2)
-      upIn12 = findDiffGenes(expMerged,cname1 = cname1, cname2 = cname2)
-      enr12<-enrichr(upIn12,dbs[1])
-      print(enr12[[1]][1:15,1:4])     
-    }
+# gene enrichment analysis of just one example per subnetwork (so one cluster that the subnetwork is found to be specific for compared to a cluster that the subnetwork is not)
+upInSub1 = findDiffGenes(subnet1_exp,cname1 = "Mixed mesoderm", cname2 = "PGC")
+enrSub1<-enrichr(upInSub1,dbs[1])
+print(enrSub1[[1]][1:15,1:4])
+# this gives us a matrix with no entries but that makes sense
+
+upInSub2 = findDiffGenes(subnet2_exp,cname1 = "ExE ectoderm", cname2 = "Notochord")
+enrSub2<-enrichr(upInSub2,dbs[1])
+print(enrSub2[[1]][1:15,1:4]) 
+
+upInSub3 = findDiffGenes(subnet3_exp,cname1 = "Visceral endoderm", cname2 = "Def. endoderm")
+enrSub3<-enrichr(upInSub3,dbs[1])
+print(enrSub3[[1]][1:15,1:4]) 
+
+upInSub4 = findDiffGenes(subnet4_exp,cname1 = "Blood progenitors 1", cname2 = "Caudal epiblast")
+enrSub4<-enrichr(upInSub4,dbs[1])
+print(enrSub4[[1]][1:15,1:4])
+```
+
+```{r}
+# Devise a method to infer cell-cell signaling interaction networks and utilize it to reconstruct the cell-cell interaction network of the data.
+
+bertierows <- rownames(bertie_expMat)
+ligands <- LR_pairs$mouse.ligand
+receptors <- LR_pairs$mouse.receptor
+
+overlap <- bertierows[(bertierows %in% ligands)]
+overlap
+overlap2 <- bertierows[(bertierows %in% receptors)]
+overlap2
+
+overlapLigs <- c(overlap, overlap2)
+clusters <- unique(seurat_bertie@meta.data$pred_types)
+
+ccInteractions <- function(clusterA,bertie_expMat,clusters) {
+  topLigs <- data.frame(ligands = character(), expression=numeric()) 
+  #get highly expressed Ligands that overlap
+  for (i in overlapLigs) {
+      if (bertie_expMat[i,clusterA] >= 1) { 
+        topLigs <- rbind(topLigs, c(i,bertie_expMat[i,clusterA])) 
+        #append rowname
+      }
   }
+  colnames(topLigs) <- c("Ligand","expression")
+  
+  #find all known receptors to each highly expressed ligand from cluster A, calculate score, if above threshold keep
+  cellInteractions <- data.frame(clusterName=character(),ligand=character(),receptor=character())
+  threshold <- 1.1
+  combinations <- expand.grid(topLigs$Ligand,topLigs$Ligand)
+  
+  for (k in 1:nrow(combinations)) {
+      #go through each cluster
+      for (m in clusters) {
+        if (bertie_expMat[combinations$Var1[k],clusterA] * bertie_expMat[combinations$Var2[k],m] > threshold) { 
+          cellInteractions <- rbind(cellInteractions, c(m, as.character(combinations[k,1]), as.character(combinations[k,2])))
+          }
+      }
+  }
+  colnames(cellInteractions) <- c("cellType","Ligand","Receptor")
+  cellInteractions <- transform(cellInteractions, freq.loc = ave(seq(nrow(cellInteractions)), cellType, FUN=length))
+  #sort by descending order so it's easier to analyze
+  cellInteractions <- cellInteractions[order(-cellInteractions$freq.loc),]
+  #this should ideally return a df of Cell 1's interactions with all other cells;can add up # interactions to determine path
+  return(cellInteractions)
 }
+
+#testing
+caudalEpiblast <- ccInteractions(clusters[1], bertie_expMat,clusters)
+defEndoderm <- ccInteractions(clusters[2], bertie_expMat,clusters)
+exeEctoderm <- ccInteractions(clusters[3], bertie_expMat,clusters)
+visceralEndoderm <- ccInteractions(clusters[4], bertie_expMat,clusters)
+exeEndoderm <- ccInteractions(clusters[5], bertie_expMat,clusters)
+mixedMesoderm <- ccInteractions(clusters[6], bertie_expMat,clusters)
+bloodProgenitors <- ccInteractions(clusters[7], bertie_expMat,clusters)
+PGC <- ccInteractions(clusters[8], bertie_expMat,clusters)
+Notochord <- ccInteractions(clusters[9], bertie_expMat,clusters)
+parietalEndoderm <- ccInteractions(clusters[10], bertie_expMat,clusters)
 ```
 
 ```{r}
