@@ -216,6 +216,20 @@ syn_linkb <- cbind.data.frame(regulatoryGene=syn_linkList2$regulatoryGene , targ
 # UNION two links
 syn_resultlink <- merge(syn_linka,syn_linkb, all=TRUE)
 
+
+# Assess our new method- table is uploaded in our final report
+resultlink <- linkc  # linka - genie3, linkb- aracne, linkc- clr, resultlink - new
+TP <- length(rownames(merge(resultlink,gold)))
+FP <- length(rownames(setdiff(resultlink,gold)))
+FN <- length(rownames(setdiff(gold, resultlink)))
+recall = TP / (TP + FN)
+precision = TP / (TP + FP)
+assess$clr <- c(TP,precision, recall)
+
+
+assess <- data.frame(matrix(ncol = 4, nrow = 3))
+colnames(assess) <- c("clr", "aracne", "genie3", "new method")
+rownames(assess) <- c("TP","precision","recall")
 dimensions = dim(syn_resultlink)
 dimensions_GENIE = dim(syn_linkList)
 dimensions_ARACNE = dim(syn_linkList2)
