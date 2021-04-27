@@ -322,7 +322,7 @@ AUPRcurve <- function(threshList, network, gold){
 }
 
 # AUPR values for the synthetic data using our own GRN reconstruction method
-tl <- c(0, 0.1, 0.2, 0.3, 0.4) # threshold values above 0.5 are too high and give TP = 0
+tl <- c(0.5, 0.6, 0.7, 0.8, 0.9) 
 syncombo_AUPR = AUPRcurve(tl, syn_resultlink2, GRN)
 ```
 
@@ -501,6 +501,7 @@ bertie_expMat <- sce_bertie@metadata[[1]]
 weights = as.matrix(as.double(bertie_resultlink2[,3]))
 subnet_threshold = 0.5*max(weights)
 close_pairs = bertie_resultlink2[which(bertie_resultlink2[,3]>=subnet_threshold),]
+# we identified these below 4 subnetworks from the close_pairs list
 subnet1 = c("mt-Atp6", "mt-Cytb")
 subnet2 = c("Rhox5", "Trap1a")
 subnet3 = c("Ctsz", "Amn", "Dab2", "Glrx", "Apom", "Apoa1", "Rbp4", "Ttr", "Ctsh", "Spink1")
@@ -545,6 +546,7 @@ subnet4_exp = subnet_exp_by_cluster(subnet4)
 library(enrichR)
 
 # gene enrichment analysis of just one example per subnetwork (so one cluster that the subnetwork is found to be specific for compared to a cluster that the subnetwork is not)
+#findDiffGenes function from project 1 was added to the project 5 helper file submitted in addition to this code file
 upInSub1 = findDiffGenes(subnet1_exp,cname1 = "Mixed mesoderm", cname2 = "PGC")
 enrSub1<-enrichr(upInSub1,dbs[1])
 print(enrSub1[[1]][1:15,1:4])
